@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product Name Matcher</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg: #0d0f14; --surface: #161a22; --surface2: #1e2330; --border: #2a3044;
+  --accent: #e8ff47; --accent2: #47b8ff; --accent3: #ff6b6b; --text: #e8eaf0; --muted: #6b7390;
+  --auto-bg: #0f1f0f; --auto-border: #1a4a1a; --auto-tag: #4cff91;
+  --review-bg: #1a1408; --review-border: #4a3a08; --review-tag: #ffd447;
+  --unmatched-bg: #1a0f0f; --unmatched-border: #4a1a1a; --unmatched-tag: #ff6b6b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Mono', monospace; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* UPLOAD SCREEN */
+#upload-screen {
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; padding: 40px;
+}
+.upload-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 28px; color: var(--accent); letter-spacing: -0.5px; }
+.upload-logo span { color: var(--muted); }
+.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; max-width: 700px; }
+.upload-card {
+  border: 2px dashed var(--border); border-radius: 12px; padding: 32px 24px;
+  text-align: center; cursor: pointer; transition: all 0.2s; position: relative;
+}
+.upload-card:hover, .upload-card.drag-over { border-color: var(--accent); background: #1a1e0a; }
+.upload-card.done { border-color: var(--auto-tag); border-style: solid; background: var(--auto-bg); }
+.upload-card input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload-icon { font-size: 32px; margin-bottom: 12px; }
+.upload-label { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.upload-sub { font-size: 11px; color: var(--muted); }
+.upload-filename { font-size: 11px; color: var(--auto-tag); margin-top: 8px; word-break: break-all; }
+.upload-btn {
+  font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 700;
+  padding: 14px 40px; background: var(--accent); color: #000;
+  border: none; border-radius: 8px; cursor: pointer; transition: opacity 0.15s;
+}
+.upload-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.upload-btn:not(:disabled):hover { opacity: 0.85; }
+.upload-progress { font-size: 12px; color: var(--muted); }
+
+/* MAIN APP */
+#app-screen { display: none; }
+
+header {
+  padding: 20px 32px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100; background: var(--bg);
+}
+.logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; color: var(--accent); }
+.logo span { color: var(--muted); font-weight: 600; }
+.header-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.stat-pill { font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 500; letter-spacing: 0.5px; white-space: nowrap; }
+.stat-total { background: var(--surface2); color: var(--text); border: 1px solid var(--border); font-weight: 700; }
+.stat-auto { background: var(--auto-bg); color: var(--auto-tag); border: 1px solid var(--auto-border); }
+.stat-review { background: var(--review-bg); color: var(--review-tag); border: 1px solid var(--review-border); }
+.stat-pending { background: #1a0f20; color: #c47eff; border: 1px solid #3a1a50; }
+.stat-unmatched { background: var(--unmatched-bg); color: var(--unmatched-tag); border: 1px solid var(--unmatched-border); }
+#save-indicator { font-size: 11px; color: var(--auto-tag); opacity: 0; transition: opacity 0.4s; }
+
+.progress-bar-wrap {
+  padding: 8px 32px; background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 14px;
+}
+.progress-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.progress-track { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+.progress-pct { font-size: 11px; color: var(--accent); font-weight: 500; }
+
+.toolbar {
+  padding: 12px 32px; border-bottom: 1px solid var(--border);
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.filter-btn {
+  font-family: 'DM Mono', monospace; font-size: 11px; padding: 6px 12px;
+  border-radius: 6px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--muted); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+.filter-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+.search-box {
+  flex: 1; min-width: 180px; font-family: 'DM Mono', monospace; font-size: 12px;
+  padding: 6px 12px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); outline: none; transition: border-color 0.15s;
+}
+.search-box:focus { border-color: var(--accent2); }
+.save-btn {
+  font-family: 'DM Mono', monospace; font-size: 11px; padding: 6px 12px;
+  background: transparent; color: var(--accent2); border: 1px solid var(--accent2);
+  border-radius: 6px; cursor: pointer; white-space: nowrap; transition: all 0.15s;
+}
+.save-btn:hover { background: #0d1820; }
+.export-btn {
+  font-family: 'DM Mono', monospace; font-size: 11px; padding: 6px 14px;
+  background: var(--accent); color: #000; border: none; border-radius: 6px;
+  cursor: pointer; font-weight: 700; transition: opacity 0.15s; white-space: nowrap;
+}
+.export-btn:hover { opacity: 0.85; }
+.reset-btn {
+  font-family: 'DM Mono', monospace; font-size: 11px; padding: 6px 12px;
+  background: transparent; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 6px; cursor: pointer; white-space: nowrap; transition: all 0.15s;
+}
+.reset-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+
+.table-wrap { padding: 16px 32px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 11.5px; min-width: 900px; }
+thead th {
+  font-family: 'Syne', sans-serif; font-size: 9.5px; font-weight: 700;
+  letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted);
+  padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap;
+}
+tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+tbody tr:hover { background: var(--surface); }
+td { padding: 9px 10px; vertical-align: middle; }
+.td-idx { color: var(--muted); font-size: 10px; width: 32px; }
+.td-status { width: 80px; }
+.td-source { width: 65px; }
+.td-name { max-width: 180px; }
+.td-final { max-width: 200px; }
+.td-price { width: 90px; text-align: right; }
+.td-sat { width: 60px; }
+.td-actions { width: 160px; }
+
+.tag { font-size: 9.5px; padding: 2px 7px; border-radius: 4px; font-weight: 500; letter-spacing: 0.5px; display: inline-block; }
+.tag-matched { background: var(--auto-bg); color: var(--auto-tag); border: 1px solid var(--auto-border); }
+.tag-review { background: var(--review-bg); color: var(--review-tag); border: 1px solid var(--review-border); }
+.tag-unmatched { background: var(--unmatched-bg); color: var(--unmatched-tag); border: 1px solid var(--unmatched-border); }
+.tag-source-auto { background: #0f1a2a; color: var(--accent2); border: 1px solid #1a3a55; font-size: 9px; padding: 2px 6px; }
+.tag-source-manual { background: #1a0f2a; color: #c47eff; border: 1px solid #3a1a55; font-size: 9px; padding: 2px 6px; }
+
+.name-text { word-break: break-word; line-height: 1.4; text-transform: uppercase; }
+.name-null { color: var(--muted); font-style: italic; font-size: 10px; }
+.final-text { word-break: break-word; line-height: 1.4; color: var(--accent); font-weight: 500; text-transform: uppercase; }
+.final-pending { color: var(--muted); font-style: italic; font-size: 10px; }
+.score-badge { font-size: 10px; color: var(--muted); }
+.price-text { color: var(--accent2); font-size: 11px; }
+.sat-text { color: var(--muted); font-size: 10.5px; text-transform: uppercase; }
+
+.inline-edit {
+  font-family: 'DM Mono', monospace; font-size: 11.5px; font-weight: 500;
+  color: var(--accent); background: #0d1a0d; border: 1px solid var(--accent);
+  border-radius: 5px; padding: 3px 7px; width: 100%; outline: none; text-transform: uppercase;
+}
+
+.action-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.pick-btn {
+  font-family: 'DM Mono', monospace; font-size: 10.5px; padding: 4px 9px;
+  border-radius: 5px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.pick-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+.reject-btn {
+  font-family: 'DM Mono', monospace; font-size: 10.5px; padding: 4px 9px;
+  border-radius: 5px; border: 1px solid var(--unmatched-border); background: var(--unmatched-bg);
+  color: var(--accent3); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.reject-btn:hover { border-color: var(--accent3); background: #250f0f; }
+.change-link { font-size: 10px; color: var(--muted); cursor: pointer; }
+.change-link:hover { color: var(--accent); }
+.rejected-label { font-size: 10px; color: #ff4444; letter-spacing: 0.5px; }
+.undo-link { font-size: 10px; color: var(--muted); cursor: pointer; margin-left: 6px; }
+.undo-link:hover { color: var(--accent); }
+
+.empty-msg { text-align: center; padding: 60px; color: var(--muted); font-size: 13px; }
+
+/* MODAL */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+  z-index: 999; align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 28px; max-width: 460px; width: 90%; box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+}
+.modal h3 { font-family: 'Syne', sans-serif; font-size: 15px; margin-bottom: 5px; color: var(--accent); }
+.modal p { font-size: 11px; color: var(--muted); margin-bottom: 18px; }
+.modal-choices { display: flex; flex-direction: column; gap: 9px; }
+.modal-pick {
+  font-family: 'DM Mono', monospace; font-size: 12px; padding: 11px 14px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); cursor: pointer; text-align: left; transition: all 0.15s;
+  word-break: break-word; line-height: 1.4;
+}
+.modal-pick .source-label { font-size: 9px; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; display: block; margin-bottom: 3px; }
+.modal-pick:hover { border-color: var(--accent2); color: var(--accent2); background: #0d1820; }
+.modal-close {
+  font-family: 'DM Mono', monospace; font-size: 11px; margin-top: 12px;
+  padding: 7px; width: 100%; background: transparent; border: 1px solid var(--border);
+  color: var(--muted); border-radius: 6px; cursor: pointer;
+}
+.modal-close:hover { border-color: var(--accent3); color: var(--accent3); }
+</style>
+</head>
+<body>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+  <div class="upload-logo">PRODUK<span>/</span>MATCHER</div>
+  <div class="upload-grid">
+    <div class="upload-card" id="card-src" ondragover="dragOver(event,'src')" ondragleave="dragLeave('src')" ondrop="dropFile(event,'src')">
+      <input type="file" accept=".xlsx,.xls" onchange="fileSelected(event,'src')">
+      <div class="upload-icon">📋</div>
+      <div class="upload-label">FILE SRC</div>
+      <div class="upload-sub">File dengan kolom nama produk SRC</div>
+      <div class="upload-filename" id="fn-src"></div>
+    </div>
+    <div class="upload-card" id="card-ipos" ondragover="dragOver(event,'ipos')" ondragleave="dragLeave('ipos')" ondrop="dropFile(event,'ipos')">
+      <input type="file" accept=".xlsx,.xls" onchange="fileSelected(event,'ipos')">
+      <div class="upload-icon">🗂️</div>
+      <div class="upload-label">FILE IPOS</div>
+      <div class="upload-sub">NAMAITEM + SATUAN + KONVERSI + HJ</div>
+      <div class="upload-filename" id="fn-ipos"></div>
+    </div>
+  </div>
+  <button class="upload-btn" id="process-btn" disabled onclick="processFiles()">PROSES & MATCH</button>
+  <div class="upload-progress" id="upload-progress"></div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app-screen">
+  <header>
+    <div class="logo">PRODUK<span>/</span>MATCHER</div>
+    <div class="header-right">
+      <span id="save-indicator"></span>
+      <span class="stat-pill stat-total" id="hdr-total">— TOTAL</span>
+      <span class="stat-pill stat-auto" id="hdr-auto">— MATCHED</span>
+      <span class="stat-pill stat-review" id="hdr-review">— REVIEW</span>
+      <span class="stat-pill stat-pending" id="hdr-pending">— PENDING</span>
+      <span class="stat-pill stat-unmatched" id="hdr-unmatched">— UNMATCHED</span>
+    </div>
+  </header>
+
+  <div class="progress-bar-wrap">
+    <span class="progress-label">REVIEW PROGRESS</span>
+    <div class="progress-track"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+    <span class="progress-pct" id="prog-pct">0%</span>
+  </div>
+
+  <div class="toolbar">
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">ALL</button>
+    <button class="filter-btn" data-filter="matched" onclick="setFilter('matched')">MATCHED</button>
+    <button class="filter-btn" data-filter="review" onclick="setFilter('review')">NEEDS REVIEW</button>
+    <button class="filter-btn" data-filter="unmatched_src" onclick="setFilter('unmatched_src')">UNMATCHED SRC</button>
+    <button class="filter-btn" data-filter="unmatched_ipos" onclick="setFilter('unmatched_ipos')">UNMATCHED IPOS</button>
+    <input class="search-box" type="text" placeholder="Search items..." oninput="onSearch(this.value)">
+    <button class="save-btn" onclick="saveProgress()">↓ SAVE</button>
+    <button class="export-btn" onclick="exportCSV()">↓ EXPORT CSV</button>
+    <button class="reset-btn" onclick="resetApp()">↺ GANTI FILE</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>STATUS</th>
+          <th>SRC</th>
+          <th>NAMA ITEM SRC</th>
+          <th>NAMA ITEM IPOS</th>
+          <th>NAMA ITEM (FINAL)</th>
+          <th>SATUAN 1</th>
+          <th>HJ 1</th>
+          <th>SATUAN 2</th>
+          <th>KONVERSI 2</th>
+          <th>HJ 2</th>
+          <th>MATCH %</th>
+          <th>AKSI</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+    <div class="empty-msg" id="empty-msg" style="display:none">No items match filter.</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <h3>Pilih Nama Yang Benar</h3>
+    <p>Pilih salah satu nama untuk dijadikan FINAL:</p>
+    <div class="modal-choices" id="modal-choices"></div>
+    <button class="modal-close" onclick="closeModalDirect()">Tutup</button>
+  </div>
+</div>
+
+<script>
+// ── Supabase ──
+const SUPA_URL = 'https://jaivdhftqqhhhsjvarre.supabase.co';
+const SUPA_KEY = 'sb_publishable_mLrfRK81mPwNwM0tvRlPNw_EbhHNzoZ';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+const PROGRESS_ID = 'produk_matcher_v2';
+
+let records = [];
+let currentFilter = 'all';
+let searchQuery = '';
+let saveTimer = null;
+let srcFile = null, iposFile = null;
+
+// ── File Upload ──
+function dragOver(e, type) { e.preventDefault(); document.getElementById('card-'+type).classList.add('drag-over'); }
+function dragLeave(type) { document.getElementById('card-'+type).classList.remove('drag-over'); }
+function dropFile(e, type) {
+  e.preventDefault();
+  dragLeave(type);
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file, type);
+}
+function fileSelected(e, type) { if (e.target.files[0]) handleFile(e.target.files[0], type); }
+function handleFile(file, type) {
+  if (type === 'src') srcFile = file;
+  else iposFile = file;
+  document.getElementById('fn-'+type).textContent = file.name;
+  document.getElementById('card-'+type).classList.add('done');
+  document.getElementById('process-btn').disabled = !(srcFile && iposFile);
+}
+
+// ── Matching Logic ──
+function normalize(s) {
+  s = s.toUpperCase().trim();
+  s = s.replace(/[^A-Z0-9 ]/g, ' ');
+  return s.replace(/\s+/g, ' ').trim();
+}
+function tokenize(s) { return new Set(normalize(s).split(' ').filter(Boolean)); }
+function smartScore(a, b) {
+  const na = normalize(a), nb = normalize(b);
+  const ta = tokenize(a), tb = tokenize(b);
+  // base sequence similarity
+  let base = seqRatio(na, nb);
+  // subset check
+  const [shorter, longer] = ta.size <= tb.size ? [ta, tb] : [tb, ta];
+  if (shorter.size > 0 && [...shorter].every(t => longer.has(t))) {
+    const coverage = shorter.size / longer.size;
+    return Math.max(base, 0.88 + 0.12 * coverage);
+  }
+  // token overlap
+  const inter = [...ta].filter(t => tb.has(t)).length;
+  const union = new Set([...ta, ...tb]).size;
+  if (union > 0) {
+    const overlap = inter / union;
+    return Math.max(base, base * 0.6 + overlap * 0.4);
+  }
+  return base;
+}
+function seqRatio(a, b) {
+  if (!a || !b) return 0;
+  const la = a.length, lb = b.length;
+  if (la === 0 && lb === 0) return 1;
+  // simple LCS-based ratio
+  const m = Array.from({length: la+1}, () => new Array(lb+1).fill(0));
+  for (let i=1;i<=la;i++) for (let j=1;j<=lb;j++)
+    m[i][j] = a[i-1]===b[j-1] ? m[i-1][j-1]+1 : Math.max(m[i-1][j], m[i][j-1]);
+  return (2 * m[la][lb]) / (la + lb);
+}
+
+async function processFiles() {
+  document.getElementById('upload-progress').textContent = 'Membaca file...';
+  document.getElementById('process-btn').disabled = true;
+  await new Promise(r => setTimeout(r, 50));
+
+  try {
+    const srcData = await readExcel(srcFile);
+    const iposData = await readExcel(iposFile);
+
+    // Parse SRC — find nama column
+    const srcNames = parseSRC(srcData);
+    const iposItems = parseIPOS(iposData);
+
+    document.getElementById('upload-progress').textContent = `Matching ${srcNames.length} SRC vs ${iposItems.length} IPOS...`;
+    await new Promise(r => setTimeout(r, 50));
+
+    records = runMatching(srcNames, iposItems);
+
+    // Try load progress from Supabase
+    document.getElementById('upload-progress').textContent = 'Memuat progress...';
+    await loadFromSupabase();
+
+    showApp();
+  } catch(err) {
+    document.getElementById('upload-progress').textContent = 'Error: ' + err.message;
+    document.getElementById('process-btn').disabled = false;
+    console.error(err);
+  }
+}
+
+function readExcel(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        resolve(XLSX.utils.sheet_to_json(ws, {header:1, defval:''}));
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = () => reject(new Error('Gagal baca file'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function parseSRC(rows) {
+  // Find header row with "NAMA" or just take first non-empty column
+  let dataStart = 0;
+  let col = 0;
+  for (let i=0; i<rows.length; i++) {
+    const row = rows[i];
+    for (let j=0; j<row.length; j++) {
+      const v = String(row[j]).trim().toUpperCase();
+      if (v.includes('NAMA')) { dataStart = i+1; col = j; break; }
+    }
+    if (dataStart > 0) break;
+  }
+  if (dataStart === 0) dataStart = 1; // fallback: skip first row
+  return rows.slice(dataStart).map(r => String(r[col]||'').trim()).filter(v => v && v !== 'nan');
+}
+
+function parseIPOS(rows) {
+  // Find header row
+  let headerIdx = -1;
+  let colMap = {};
+  for (let i=0; i<Math.min(5, rows.length); i++) {
+    const row = rows[i].map(v => String(v).trim().toUpperCase());
+    if (row.some(v => v.includes('NAMAITEM') || v === 'NAMA ITEM')) {
+      headerIdx = i;
+      row.forEach((v,j) => {
+        if (v.includes('NAMAITEM') || v === 'NAMA ITEM') colMap.name = j;
+        else if (v === 'SATUAN1') colMap.satuan1 = j;
+        else if (v === 'SATUAN2') colMap.satuan2 = j;
+        else if (v === 'SATUAN3') colMap.satuan3 = j;
+        else if (v === 'SATUAN4') colMap.satuan4 = j;
+        else if (v === 'KONVERSI1') colMap.konversi1 = j;
+        else if (v === 'KONVERSI2') colMap.konversi2 = j;
+        else if (v === 'HJ1') colMap.hj1 = j;
+        else if (v === 'HJ2_1') colMap.hj2 = j;
+      });
+      break;
+    }
+  }
+  if (headerIdx === -1 || colMap.name === undefined) throw new Error('Kolom NAMAITEM tidak ditemukan di file IPOS');
+
+  const cleanNum = v => {
+    if (v === '' || v === null || v === undefined) return null;
+    const n = Number(v);
+    return isNaN(n) || n === 0 ? null : n;
+  };
+  const cleanStr = v => { const s = String(v).trim(); return s && s !== '0' ? s : null; };
+
+  return rows.slice(headerIdx+1).map(r => ({
+    name: String(r[colMap.name]||'').trim(),
+    satuan1: cleanStr(r[colMap.satuan1]),
+    satuan2: cleanStr(r[colMap.satuan2]),
+    satuan3: cleanStr(r[colMap.satuan3]),
+    satuan4: cleanStr(r[colMap.satuan4]),
+    konversi1: cleanNum(r[colMap.konversi1]),
+    konversi2: cleanNum(r[colMap.konversi2]),
+    hj1: cleanNum(r[colMap.hj1]),
+    hj2: cleanNum(r[colMap.hj2]),
+  })).filter(item => item.name && item.name !== 'nan');
+}
+
+function runMatching(srcNames, iposItems) {
+  const CONFIDENT = 0.88, REVIEW = 0.55;
+  const iposMap = {};
+  iposItems.forEach(item => iposMap[item.name] = item);
+  const iposNames = iposItems.map(i => i.name);
+  const matchedIpos = new Set();
+  const results = [];
+
+  const priceFields = item => ({
+    satuan1: item?.satuan1 || null, satuan2: item?.satuan2 || null,
+    satuan3: item?.satuan3 || null, satuan4: item?.satuan4 || null,
+    konversi1: item?.konversi1 || null, konversi2: item?.konversi2 || null,
+    hj1: item?.hj1 || null, hj2: item?.hj2 || null,
+  });
+  const emptyPrice = () => ({satuan1:null,satuan2:null,satuan3:null,satuan4:null,konversi1:null,konversi2:null,hj1:null,hj2:null});
+
+  srcNames.forEach((src, i) => {
+    let bestScore = 0, bestIpos = null;
+    iposNames.forEach(iname => {
+      const sc = smartScore(src, iname);
+      if (sc > bestScore) { bestScore = sc; bestIpos = iname; }
+    });
+    const iposData = bestIpos ? iposMap[bestIpos] : null;
+    if (bestScore >= CONFIDENT) {
+      const final = bestIpos && bestIpos.length >= src.length ? bestIpos : src;
+      results.push({id:i, src, ipos:bestIpos, score:Math.round(bestScore*1000)/1000, status:'auto', final, reviewState:null, _editing:false, ...priceFields(iposData)});
+      if (bestIpos) matchedIpos.add(bestIpos);
+    } else if (bestScore >= REVIEW) {
+      results.push({id:i, src, ipos:bestIpos, score:Math.round(bestScore*1000)/1000, status:'review', final:null, reviewState:null, _editing:false, ...priceFields(iposData)});
+      if (bestIpos) matchedIpos.add(bestIpos);
+    } else {
+      results.push({id:i, src, ipos:null, score:Math.round(bestScore*1000)/1000, status:'unmatched_src', final:src, reviewState:null, _editing:false, ...emptyPrice()});
+    }
+  });
+
+  let uid = srcNames.length;
+  iposItems.forEach(item => {
+    if (!matchedIpos.has(item.name)) {
+      results.push({id:uid++, src:null, ipos:item.name, score:0, status:'unmatched_ipos', final:item.name, reviewState:null, _editing:false, ...priceFields(item)});
+    }
+  });
+
+  return results;
+}
+
+function showApp() {
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  updateStats();
+  renderTable();
+}
+
+function resetApp() {
+  if (!confirm('Ganti file? Progress yang belum di-save akan hilang.')) return;
+  srcFile = null; iposFile = null; records = [];
+  document.getElementById('fn-src').textContent = '';
+  document.getElementById('fn-ipos').textContent = '';
+  document.getElementById('card-src').classList.remove('done');
+  document.getElementById('card-ipos').classList.remove('done');
+  document.getElementById('process-btn').disabled = true;
+  document.getElementById('upload-progress').textContent = '';
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('upload-screen').style.display = 'flex';
+}
+
+// ── Display ──
+function getDisplayRows() {
+  const rows = [];
+  records.forEach(r => {
+    if (r.status === 'review' && r.reviewState === 'rejected') {
+      if (r.src) rows.push({...r, _virtual:'src', _status_display:'unmatched_src', final:r.src});
+      if (r.ipos) rows.push({...r, _virtual:'ipos', _status_display:'unmatched_ipos', final:r.ipos});
+    } else if (r.status === 'review' && r.reviewState === 'resolved') {
+      rows.push({...r, _status_display:'matched', _source:'MANUAL'});
+    } else if (r.status === 'auto') {
+      rows.push({...r, _status_display:'matched', _source:'AUTO'});
+    } else {
+      rows.push({...r, _status_display:r.status, _source:null});
+    }
+  });
+  return rows;
+}
+
+function getFiltered() {
+  let list = getDisplayRows();
+  if (currentFilter !== 'all') list = list.filter(r => r._status_display === currentFilter);
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    list = list.filter(r =>
+      (r.src && r.src.toLowerCase().includes(q)) ||
+      (r.ipos && r.ipos.toLowerCase().includes(q)) ||
+      (r.final && r.final.toLowerCase().includes(q))
+    );
+  }
+  if (currentFilter === 'review') list = [...list].sort((a,b) => b.score - a.score);
+  return list;
+}
+
+function updateStats() {
+  const display = getDisplayRows();
+  const reviewRows = records.filter(r => r.status === 'review');
+  const resolved = reviewRows.filter(r => r.reviewState === 'resolved').length;
+  const rejected = reviewRows.filter(r => r.reviewState === 'rejected').length;
+  const pending = reviewRows.length - resolved - rejected;
+  const matched = display.filter(r => r._status_display === 'matched').length;
+  const base_u_src = records.filter(r => r.status === 'unmatched_src').length;
+  const base_u_ipos = records.filter(r => r.status === 'unmatched_ipos').length;
+  const rej_src = records.filter(r => r.status==='review' && r.reviewState==='rejected' && r.src).length;
+  const rej_ipos = records.filter(r => r.status==='review' && r.reviewState==='rejected' && r.ipos).length;
+
+  document.getElementById('hdr-total').textContent = display.length + ' TOTAL';
+  document.getElementById('hdr-auto').textContent = matched + ' MATCHED';
+  document.getElementById('hdr-review').textContent = reviewRows.length + ' REVIEW';
+  document.getElementById('hdr-pending').textContent = pending + ' PENDING';
+  document.getElementById('hdr-unmatched').textContent = (base_u_src + base_u_ipos + rej_src + rej_ipos) + ' UNMATCHED';
+
+  const done = resolved + rejected;
+  const pct = reviewRows.length > 0 ? Math.round((done / reviewRows.length) * 100) : 100;
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-pct').textContent = pct + '%';
+}
+
+function fmt(n) { return n ? n.toLocaleString('id-ID') : '—'; }
+
+function renderTable() {
+  const list = getFiltered();
+  const tbody = document.getElementById('table-body');
+  const empty = document.getElementById('empty-msg');
+  if (list.length === 0) { tbody.innerHTML = ''; empty.style.display = 'block'; updateStats(); return; }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = list.map((r, idx) => {
+    const sd = r._status_display;
+    const tagHtml = sd === 'matched' ? '<span class="tag tag-matched">MATCHED</span>'
+      : sd === 'review' ? '<span class="tag tag-review">REVIEW</span>'
+      : '<span class="tag tag-unmatched">UNMATCHED</span>';
+    const sourceBadge = r._source === 'AUTO' ? '<span class="tag tag-source-auto">AUTO</span>'
+      : r._source === 'MANUAL' ? '<span class="tag tag-source-manual">MANUAL</span>' : '';
+
+    const srcCell = r.src ? `<span class="name-text">${esc(r.src)}</span>` : `<span class="name-null">—</span>`;
+    const iposCell = r.ipos ? `<span class="name-text">${esc(r.ipos)}</span>` : `<span class="name-null">—</span>`;
+
+    let finalCell = '';
+    if (sd === 'matched') {
+      finalCell = r._editing
+        ? `<input class="inline-edit" id="edit-${r.id}" value="${esc(r.final||'')}" onkeydown="editKeydown(event,${r.id})" onblur="commitEdit(${r.id})">`
+        : `<span class="final-text">${esc(r.final||'')}</span>`;
+    } else if (sd === 'review') {
+      finalCell = r.reviewState === 'resolved'
+        ? `<span class="final-text">${esc(r.final||'')}</span>`
+        : `<span class="final-pending">Belum dipilih</span>`;
+    } else {
+      finalCell = r.final ? `<span class="final-text">${esc(r.final)}</span>` : `<span class="name-null">—</span>`;
+    }
+
+    const scoreCell = r.score > 0 ? `<span class="score-badge">${Math.round(r.score*100)}%</span>` : `<span class="score-badge" style="color:var(--border)">—</span>`;
+
+    let actionCell = '';
+    if (sd === 'matched') {
+      actionCell = `<span class="change-link" onclick="startEdit(${r.id})">✎ edit</span>`;
+    } else if (sd === 'review') {
+      if (r.reviewState === 'resolved') {
+        actionCell = `<span class="change-link" onclick="openModal(${r.id})">✎ ganti</span> <span class="change-link" style="color:var(--accent3);margin-left:6px" onclick="rejectMatch(${r.id})">✕</span>`;
+      } else if (r.reviewState === 'rejected') {
+        actionCell = `<span class="rejected-label">REJECTED</span><span class="undo-link" onclick="undoReject(${r.id})">undo</span>`;
+      } else {
+        actionCell = `<div class="action-row"><button class="pick-btn" onclick="openModal(${r.id})">⚡ Pilih</button><button class="reject-btn" onclick="rejectMatch(${r.id})">✕ Beda</button></div>`;
+      }
+    } else if (r._virtual) {
+      actionCell = `<span class="rejected-label">REJECTED</span><span class="undo-link" onclick="undoReject(${r.id})">undo</span>`;
+    }
+
+    return `<tr>
+      <td class="td-idx">${idx+1}</td>
+      <td class="td-status">${tagHtml}</td>
+      <td class="td-source">${sourceBadge}</td>
+      <td class="td-name">${srcCell}</td>
+      <td class="td-name">${iposCell}</td>
+      <td class="td-final">${finalCell}</td>
+      <td class="td-sat"><span class="sat-text">${r.satuan1||'—'}</span></td>
+      <td class="td-price"><span class="price-text">${r.hj1 ? fmt(r.hj1) : '—'}</span></td>
+      <td class="td-sat"><span class="sat-text">${r.satuan2||'—'}</span></td>
+      <td class="td-sat"><span class="sat-text">${r.konversi2||'—'}</span></td>
+      <td class="td-price"><span class="price-text">${r.hj2 ? fmt(r.hj2) : '—'}</span></td>
+      <td>${scoreCell}</td>
+      <td class="td-actions">${actionCell}</td>
+    </tr>`;
+  }).join('');
+  updateStats();
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Filter / Search ──
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  renderTable();
+}
+function onSearch(v) { searchQuery = v; renderTable(); }
+
+// ── Inline Edit ──
+function startEdit(id) {
+  records.forEach(r => { r._editing = false; });
+  const r = records.find(r => r.id === id);
+  if (r) r._editing = true;
+  renderTable();
+  setTimeout(() => { const inp = document.getElementById('edit-'+id); if (inp) { inp.focus(); inp.select(); } }, 20);
+}
+function commitEdit(id) {
+  const inp = document.getElementById('edit-'+id);
+  if (!inp) return;
+  const val = inp.value.trim().toUpperCase();
+  const r = records.find(r => r.id === id);
+  if (r) { if (val) r.final = val; r._editing = false; }
+  renderTable();
+  scheduleSave();
+}
+function editKeydown(e, id) {
+  if (e.key === 'Enter') { e.preventDefault(); commitEdit(id); }
+  if (e.key === 'Escape') { const r = records.find(r => r.id === id); if (r) r._editing = false; renderTable(); }
+}
+
+// ── Reject / Undo ──
+function rejectMatch(id) {
+  const r = records.find(r => r.id === id);
+  if (r) { r.reviewState = 'rejected'; r.final = null; }
+  renderTable(); scheduleSave();
+}
+function undoReject(id) {
+  const r = records.find(r => r.id === id);
+  if (r) { r.reviewState = null; r.final = null; }
+  renderTable(); scheduleSave();
+}
+
+// ── Modal ──
+let modalRecordId = null;
+function openModal(id) {
+  modalRecordId = id;
+  const r = records.find(r => r.id === id);
+  const choices = [];
+  if (r.ipos) choices.push({label:'IPOS', name:r.ipos});
+  if (r.src) choices.push({label:'SRC', name:r.src});
+  document.getElementById('modal-choices').innerHTML = choices.map(o =>
+    `<button class="modal-pick" onclick="pickName('${esc(o.name)}')"><span class="source-label">${o.label}</span>${esc(o.name)}</button>`
+  ).join('');
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function pickName(name) {
+  const txt = document.createElement('textarea');
+  txt.innerHTML = name;
+  const r = records.find(r => r.id === modalRecordId);
+  if (r) { r.final = txt.value.toUpperCase(); r.reviewState = 'resolved'; }
+  closeModalDirect(); renderTable(); scheduleSave();
+}
+function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
+function closeModalDirect() { document.getElementById('modal-overlay').classList.remove('open'); modalRecordId = null; }
+
+// ── Supabase Save/Load ──
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    const state = records.map(r => ({id:r.id, final:r.final, reviewState:r.reviewState}));
+    const { error } = await supa.from('progress').upsert(
+      {prog_key: PROGRESS_ID, data: state, updated_at: new Date().toISOString()},
+      {onConflict: 'prog_key', ignoreDuplicates: false}
+    );
+    if (error) { console.error('Supabase save error:', error); return; }
+    showSaveIndicator();
+  }, 800);
+}
+function showSaveIndicator() {
+  const el = document.getElementById('save-indicator');
+  el.textContent = '✓ saved'; el.style.opacity = '1';
+  setTimeout(() => { el.style.opacity = '0'; }, 2000);
+}
+async function loadFromSupabase() {
+  try {
+    const {data, error} = await supa.from('progress').select('data').eq('prog_key', PROGRESS_ID).single();
+    if (error || !data) return false;
+    data.data.forEach(s => {
+      const r = records.find(r => r.id === s.id);
+      if (r) { r.final = s.final; r.reviewState = s.reviewState; }
+    });
+    return true;
+  } catch { return false; }
+}
+
+// ── Manual Save (JSON) ──
+function saveProgress() {
+  const state = records.map(r => ({id:r.id, final:r.final, reviewState:r.reviewState}));
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'produk_progress.json'; a.click();
+}
+
+// ── Export CSV ──
+function exportCSV() {
+  const rows = [['NAMA ITEM (FINAL)','NAMA ITEM SRC','NAMA ITEM IPOS','SATUAN 1','HJ 1','SATUAN 2','KONVERSI 2','HJ 2']];
+  getDisplayRows().forEach(r => {
+    rows.push([r.final||'', r.src||'', r.ipos||'', r.satuan1||'', r.hj1||'', r.satuan2||'', r.konversi2||'', r.hj2||'']);
+  });
+  const csv = rows.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'produk_final.csv'; a.click();
+}
+</script>
+</body>
+</html>
