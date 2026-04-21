@@ -727,12 +727,12 @@ function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     const state = records.map(r => ({id:r.id, final:r.final, reviewState:r.reviewState}));
-    const { error } = await supa.from('progress').upsert(
-      {prog_key: PROGRESS_ID, data: state, updated_at: new Date().toISOString()},
-      {onConflict: 'prog_key', ignoreDuplicates: false}
-    );
-    if (error) { console.error('Supabase save error:', error); return; }
-    showSaveIndicator();
+    try {
+      const { error } = await supa.from('progress')
+        .upsert({prog_key: PROGRESS_ID, data: state, updated_at: new Date().toISOString()});
+      if (error) { console.error('Supabase save error:', error.message, error.details); return; }
+      showSaveIndicator();
+    } catch(e) { console.error('Save exception:', e); }
   }, 800);
 }
 function showSaveIndicator() {
@@ -742,14 +742,18 @@ function showSaveIndicator() {
 }
 async function loadFromSupabase() {
   try {
-    const {data, error} = await supa.from('progress').select('data').eq('prog_key', PROGRESS_ID).single();
-    if (error || !data) return false;
+    const { data, error } = await supa.from('progress')
+      .select('data')
+      .eq('prog_key', PROGRESS_ID)
+      .maybeSingle();
+    if (error) { console.error('Load error:', error.message); return false; }
+    if (!data) return false;
     data.data.forEach(s => {
       const r = records.find(r => r.id === s.id);
       if (r) { r.final = s.final; r.reviewState = s.reviewState; }
     });
     return true;
-  } catch { return false; }
+  } catch(e) { console.error('Load exception:', e); return false; }
 }
 
 // ── Manual Save (JSON) ──
