@@ -45,6 +45,48 @@ body { font-family: 'DM Mono', monospace; background: var(--bg); color: var(--te
 .upload-btn:not(:disabled):hover { opacity: 0.85; }
 .upload-progress { font-size: 12px; color: var(--muted); }
 
+.session-tabs { display: flex; gap: 8px; }
+.session-tab {
+  font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
+  padding: 8px 24px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--muted); cursor: pointer; transition: all 0.15s;
+}
+.session-tab.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+.session-tab:not(.active):hover { border-color: var(--accent); color: var(--accent); }
+
+.project-input {
+  font-family: 'DM Mono', monospace; font-size: 13px;
+  padding: 12px 16px; width: 100%;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); outline: none; transition: border-color 0.15s;
+}
+.project-input:focus { border-color: var(--accent); }
+.project-input::placeholder { color: var(--muted); }
+
+.session-list { width: 100%; display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+.session-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface); cursor: pointer; transition: all 0.15s; gap: 16px;
+}
+.session-item:hover { border-color: var(--accent2); background: #0d1820; }
+.session-meta { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.session-project { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: var(--text); }
+.session-files { font-size: 10.5px; color: var(--muted); }
+.session-date { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.session-load-btn {
+  font-family: 'DM Mono', monospace; font-size: 11px; padding: 6px 14px;
+  background: var(--accent2); color: #000; border: none; border-radius: 5px;
+  cursor: pointer; font-weight: 600; white-space: nowrap; transition: opacity 0.15s;
+}
+.session-load-btn:hover { opacity: 0.85; }
+.session-del-btn {
+  font-family: 'DM Mono', monospace; font-size: 10px; padding: 5px 10px;
+  background: transparent; color: var(--accent3); border: 1px solid var(--unmatched-border);
+  border-radius: 5px; cursor: pointer; transition: all 0.15s;
+}
+.session-del-btn:hover { background: var(--unmatched-bg); }
+
 /* MAIN APP */
 #app-screen { display: none; }
 
@@ -204,24 +246,43 @@ td { padding: 9px 10px; vertical-align: middle; }
 <!-- UPLOAD SCREEN -->
 <div id="upload-screen">
   <div class="upload-logo">PRODUK<span>/</span>MATCHER</div>
-  <div class="upload-grid">
-    <div class="upload-card" id="card-src" ondragover="dragOver(event,'src')" ondragleave="dragLeave('src')" ondrop="dropFile(event,'src')">
-      <input type="file" accept=".xlsx,.xls" onchange="fileSelected(event,'src')">
-      <div class="upload-icon">📋</div>
-      <div class="upload-label">FILE SRC</div>
-      <div class="upload-sub">File dengan kolom nama produk SRC</div>
-      <div class="upload-filename" id="fn-src"></div>
-    </div>
-    <div class="upload-card" id="card-ipos" ondragover="dragOver(event,'ipos')" ondragleave="dragLeave('ipos')" ondrop="dropFile(event,'ipos')">
-      <input type="file" accept=".xlsx,.xls" onchange="fileSelected(event,'ipos')">
-      <div class="upload-icon">🗂️</div>
-      <div class="upload-label">FILE IPOS</div>
-      <div class="upload-sub">NAMAITEM + SATUAN + KONVERSI + HJ</div>
-      <div class="upload-filename" id="fn-ipos"></div>
-    </div>
+
+  <!-- TAB SWITCH -->
+  <div class="session-tabs">
+    <button class="session-tab active" id="tab-new" onclick="switchTab('new')">NEW SESSION</button>
+    <button class="session-tab" id="tab-load" onclick="switchTab('load')">LOAD SESSION</button>
   </div>
-  <button class="upload-btn" id="process-btn" disabled onclick="processFiles()">PROSES & MATCH</button>
-  <div class="upload-progress" id="upload-progress"></div>
+
+  <!-- NEW SESSION PANEL -->
+  <div id="panel-new" style="width:100%;max-width:700px;display:flex;flex-direction:column;gap:20px;align-items:center;">
+    <input class="project-input" id="project-name" type="text" placeholder="Nama project / batch (contoh: Batch April 2026)" oninput="checkReady()">
+    <div class="upload-grid">
+      <div class="upload-card" id="card-src" ondragover="dragOver(event,'src')" ondragleave="dragLeave('src')" ondrop="dropFile(event,'src')">
+        <input type="file" accept=".xlsx,.xls" onchange="fileSelected(event,'src')">
+        <div class="upload-icon">📋</div>
+        <div class="upload-label">FILE SRC</div>
+        <div class="upload-sub">File dengan kolom nama produk SRC</div>
+        <div class="upload-filename" id="fn-src"></div>
+      </div>
+      <div class="upload-card" id="card-ipos" ondragover="dragOver(event,'ipos')" ondragleave="dragLeave('ipos')" ondrop="dropFile(event,'ipos')">
+        <input type="file" accept=".xlsx,.xls" onchange="fileSelected(event,'ipos')">
+        <div class="upload-icon">🗂️</div>
+        <div class="upload-label">FILE IPOS</div>
+        <div class="upload-sub">NAMAITEM + SATUAN + KONVERSI + HJ</div>
+        <div class="upload-filename" id="fn-ipos"></div>
+      </div>
+    </div>
+    <button class="upload-btn" id="process-btn" disabled onclick="processFiles()">PROSES & MATCH</button>
+    <div class="upload-progress" id="upload-progress"></div>
+  </div>
+
+  <!-- LOAD SESSION PANEL -->
+  <div id="panel-load" style="width:100%;max-width:700px;display:none;flex-direction:column;gap:12px;align-items:center;">
+    <div class="session-list" id="session-list">
+      <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading sessions...</div>
+    </div>
+    <div class="upload-progress" id="load-progress"></div>
+  </div>
 </div>
 
 <!-- MAIN APP -->
@@ -253,7 +314,7 @@ td { padding: 9px 10px; vertical-align: middle; }
     <input class="search-box" type="text" placeholder="Search items..." oninput="onSearch(this.value)">
     <button class="save-btn" onclick="saveProgress()">↓ SAVE</button>
     <button class="export-btn" onclick="exportCSV()">↓ EXPORT CSV</button>
-    <button class="reset-btn" onclick="resetApp()">↺ GANTI FILE</button>
+    <button class="reset-btn" onclick="exitApp()">⏏ EXIT</button>
   </div>
 
   <div class="table-wrap">
@@ -295,13 +356,77 @@ td { padding: 9px 10px; vertical-align: middle; }
 const SUPA_URL = 'https://jaivdhftqqhhhsjvarre.supabase.co';
 const SUPA_KEY = 'sb_publishable_mLrfRK81mPwNwM0tvRlPNw_EbhHNzoZ';
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
-const PROGRESS_ID = 'produk_matcher_v2';
 
 let records = [];
 let currentFilter = 'all';
 let searchQuery = '';
 let saveTimer = null;
 let srcFile = null, iposFile = null;
+let currentSessionKey = null;
+let currentSessionName = null;
+
+// ── Tab switch ──
+function switchTab(tab) {
+  document.getElementById('tab-new').classList.toggle('active', tab === 'new');
+  document.getElementById('tab-load').classList.toggle('active', tab === 'load');
+  document.getElementById('panel-new').style.display = tab === 'new' ? 'flex' : 'none';
+  document.getElementById('panel-load').style.display = tab === 'load' ? 'flex' : 'none';
+  if (tab === 'load') loadSessionList();
+}
+
+// ── Session list ──
+async function loadSessionList() {
+  const el = document.getElementById('session-list');
+  el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading...</div>';
+  try {
+    const { data, error } = await supa.from('progress').select('prog_key, update_at, session_meta').order('update_at', {ascending: false});
+    if (error || !data || data.length === 0) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Belum ada session tersimpan.</div>';
+      return;
+    }
+    el.innerHTML = data.map(row => {
+      const meta = row.session_meta || {};
+      const date = row.update_at ? new Date(row.update_at).toLocaleString('id-ID') : '—';
+      return `<div class="session-item">
+        <div class="session-meta">
+          <div class="session-project">${esc(meta.project || row.prog_key)}</div>
+          <div class="session-files">SRC: ${esc(meta.src_file||'—')} &nbsp;·&nbsp; IPOS: ${esc(meta.ipos_file||'—')}</div>
+        </div>
+        <div class="session-date">${date}</div>
+        <button class="session-load-btn" onclick="loadSession('${esc(row.prog_key)}','${esc(meta.project||row.prog_key)}')">LOAD</button>
+        <button class="session-del-btn" onclick="deleteSession(event,'${esc(row.prog_key)}')">✕</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--accent3);font-size:12px;text-align:center;padding:20px">Gagal load sessions.</div>';
+  }
+}
+
+async function deleteSession(e, key) {
+  e.stopPropagation();
+  if (!confirm('Hapus session ini?')) return;
+  await supa.from('progress').delete().eq('prog_key', key);
+  loadSessionList();
+}
+
+async function loadSession(key, name) {
+  document.getElementById('load-progress').textContent = 'Loading session...';
+  currentSessionKey = key;
+  currentSessionName = name;
+  // We only load progress state — user still needs to upload files
+  // Show new session panel pre-filled
+  switchTab('new');
+  document.getElementById('project-name').value = name;
+  document.getElementById('project-name').disabled = true;
+  document.getElementById('upload-progress').textContent = '✓ Session dipilih: ' + name + ' — upload file lalu proses';
+  checkReady();
+}
+
+// ── Check ready ──
+function checkReady() {
+  const name = document.getElementById('project-name').value.trim();
+  document.getElementById('process-btn').disabled = !(srcFile && iposFile && name);
+}
 
 // ── File Upload ──
 function dragOver(e, type) { e.preventDefault(); document.getElementById('card-'+type).classList.add('drag-over'); }
@@ -318,7 +443,7 @@ function handleFile(file, type) {
   else iposFile = file;
   document.getElementById('fn-'+type).textContent = file.name;
   document.getElementById('card-'+type).classList.add('done');
-  document.getElementById('process-btn').disabled = !(srcFile && iposFile);
+  checkReady();
 }
 
 // ── Matching Logic ──
@@ -360,6 +485,16 @@ function seqRatio(a, b) {
 }
 
 async function processFiles() {
+  const projectName = document.getElementById('project-name').value.trim();
+  if (!projectName) { alert('Isi nama project dulu!'); return; }
+
+  // Generate session key if new session
+  if (!currentSessionKey) {
+    const slug = projectName.toLowerCase().replace(/[^a-z0-9]/g,'_').substring(0,40);
+    currentSessionKey = slug + '_' + Date.now();
+  }
+  currentSessionName = projectName;
+
   document.getElementById('upload-progress').textContent = 'Membaca file...';
   document.getElementById('process-btn').disabled = true;
   await new Promise(r => setTimeout(r, 50));
@@ -367,8 +502,6 @@ async function processFiles() {
   try {
     const srcData = await readExcel(srcFile);
     const iposData = await readExcel(iposFile);
-
-    // Parse SRC — find nama column
     const srcNames = parseSRC(srcData);
     const iposItems = parseIPOS(iposData);
 
@@ -377,9 +510,15 @@ async function processFiles() {
 
     records = runMatching(srcNames, iposItems);
 
-    // Try load progress from Supabase
     document.getElementById('upload-progress').textContent = 'Memuat progress...';
     await loadFromSupabase();
+
+    // Save session meta
+    await supa.from('progress').upsert({
+      prog_key: currentSessionKey,
+      session_meta: { project: projectName, src_file: srcFile.name, ipos_file: iposFile.name },
+      update_at: new Date().toISOString()
+    });
 
     showApp();
   } catch(err) {
@@ -512,21 +651,26 @@ function runMatching(srcNames, iposItems) {
 function showApp() {
   document.getElementById('upload-screen').style.display = 'none';
   document.getElementById('app-screen').style.display = 'block';
+  document.querySelector('.logo').innerHTML = `PRODUK<span>/</span>MATCHER <span style="font-size:12px;color:var(--muted);font-weight:400">${esc(currentSessionName)}</span>`;
   updateStats();
   renderTable();
 }
 
-function resetApp() {
-  if (!confirm('Ganti file? Progress yang belum di-save akan hilang.')) return;
+function exitApp() {
+  if (!confirm('Exit session ini? Progress sudah tersimpan di DB.')) return;
   srcFile = null; iposFile = null; records = [];
+  currentSessionKey = null; currentSessionName = null;
   document.getElementById('fn-src').textContent = '';
   document.getElementById('fn-ipos').textContent = '';
   document.getElementById('card-src').classList.remove('done');
   document.getElementById('card-ipos').classList.remove('done');
   document.getElementById('process-btn').disabled = true;
   document.getElementById('upload-progress').textContent = '';
+  document.getElementById('project-name').value = '';
+  document.getElementById('project-name').disabled = false;
   document.getElementById('app-screen').style.display = 'none';
   document.getElementById('upload-screen').style.display = 'flex';
+  switchTab('new');
 }
 
 // ── Display ──
@@ -726,10 +870,14 @@ function closeModalDirect() { document.getElementById('modal-overlay').classList
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
+    if (!currentSessionKey) return;
     const state = records.map(r => ({id:r.id, final:r.final, reviewState:r.reviewState}));
     try {
-      const { error } = await supa.from('progress')
-        .upsert({prog_key: PROGRESS_ID, data: state, updated_at: new Date().toISOString()});
+      const { error } = await supa.from('progress').upsert({
+        prog_key: currentSessionKey,
+        data: state,
+        update_at: new Date().toISOString()
+      });
       if (error) { console.error('Supabase save error:', error.message, error.details); return; }
       showSaveIndicator();
     } catch(e) { console.error('Save exception:', e); }
@@ -741,13 +889,14 @@ function showSaveIndicator() {
   setTimeout(() => { el.style.opacity = '0'; }, 2000);
 }
 async function loadFromSupabase() {
+  if (!currentSessionKey) return false;
   try {
     const { data, error } = await supa.from('progress')
       .select('data')
-      .eq('prog_key', PROGRESS_ID)
+      .eq('prog_key', currentSessionKey)
       .maybeSingle();
     if (error) { console.error('Load error:', error.message); return false; }
-    if (!data) return false;
+    if (!data || !data.data) return false;
     data.data.forEach(s => {
       const r = records.find(r => r.id === s.id);
       if (r) { r.final = s.final; r.reviewState = s.reviewState; }
@@ -759,9 +908,9 @@ async function loadFromSupabase() {
 // ── Manual Save (JSON) ──
 function saveProgress() {
   const state = records.map(r => ({id:r.id, final:r.final, reviewState:r.reviewState}));
-  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify({session: currentSessionName, data: state}, null, 2)], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'produk_progress.json'; a.click();
+  a.download = (currentSessionName||'produk') + '_progress.json'; a.click();
 }
 
 // ── Export CSV ──
