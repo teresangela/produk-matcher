@@ -411,15 +411,23 @@ async function deleteSession(e, key) {
 
 async function loadSession(key, name) {
   document.getElementById('load-progress').textContent = 'Loading session...';
-  currentSessionKey = key;
-  currentSessionName = name;
-  // We only load progress state — user still needs to upload files
-  // Show new session panel pre-filled
-  switchTab('new');
-  document.getElementById('project-name').value = name;
-  document.getElementById('project-name').disabled = true;
-  document.getElementById('upload-progress').textContent = '✓ Session dipilih: ' + name + ' — upload file lalu proses';
-  checkReady();
+  try {
+    const { data, error } = await supa.from('progress')
+      .select('data, session_meta')
+      .eq('prog_key', key)
+      .maybeSingle();
+    if (error || !data || !data.data) {
+      document.getElementById('load-progress').textContent = 'Gagal load session.';
+      return;
+    }
+    currentSessionKey = key;
+    currentSessionName = name;
+    records = data.data.map(r => ({...r, _editing: false}));
+    showApp();
+  } catch(e) {
+    document.getElementById('load-progress').textContent = 'Error: ' + e.message;
+    console.error(e);
+  }
 }
 
 // ── Check ready ──
@@ -488,11 +496,8 @@ async function processFiles() {
   const projectName = document.getElementById('project-name').value.trim();
   if (!projectName) { alert('Isi nama project dulu!'); return; }
 
-  // Generate session key if new session
-  if (!currentSessionKey) {
-    const slug = projectName.toLowerCase().replace(/[^a-z0-9]/g,'_').substring(0,40);
-    currentSessionKey = slug + '_' + Date.now();
-  }
+  const slug = projectName.toLowerCase().replace(/[^a-z0-9]/g,'_').substring(0,40);
+  currentSessionKey = slug + '_' + Date.now();
   currentSessionName = projectName;
 
   document.getElementById('upload-progress').textContent = 'Membaca file...';
@@ -510,15 +515,17 @@ async function processFiles() {
 
     records = runMatching(srcNames, iposItems);
 
-    document.getElementById('upload-progress').textContent = 'Memuat progress...';
-    await loadFromSupabase();
+    document.getElementById('upload-progress').textContent = 'Menyimpan ke database...';
+    await new Promise(r => setTimeout(r, 50));
 
-    // Save session meta
-    await supa.from('progress').upsert({
+    // Save full session to DB
+    const { error } = await supa.from('progress').upsert({
       prog_key: currentSessionKey,
+      data: records.map(r => ({...r, _editing: undefined})),
       session_meta: { project: projectName, src_file: srcFile.name, ipos_file: iposFile.name },
       update_at: new Date().toISOString()
     });
+    if (error) throw new Error('DB save failed: ' + error.message);
 
     showApp();
   } catch(err) {
@@ -666,6 +673,7 @@ function exitApp() {
   document.getElementById('card-ipos').classList.remove('done');
   document.getElementById('process-btn').disabled = true;
   document.getElementById('upload-progress').textContent = '';
+  document.getElementById('load-progress').textContent = '';
   document.getElementById('project-name').value = '';
   document.getElementById('project-name').disabled = false;
   document.getElementById('app-screen').style.display = 'none';
@@ -871,14 +879,13 @@ function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     if (!currentSessionKey) return;
-    const state = records.map(r => ({id:r.id, final:r.final, reviewState:r.reviewState}));
     try {
       const { error } = await supa.from('progress').upsert({
         prog_key: currentSessionKey,
-        data: state,
+        data: records.map(r => ({...r, _editing: undefined})),
         update_at: new Date().toISOString()
       });
-      if (error) { console.error('Supabase save error:', error.message, error.details); return; }
+      if (error) { console.error('Supabase save error:', error.message); return; }
       showSaveIndicator();
     } catch(e) { console.error('Save exception:', e); }
   }, 800);
