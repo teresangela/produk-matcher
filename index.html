@@ -190,6 +190,12 @@ td { padding: 9px 10px; vertical-align: middle; }
   color: var(--accent); background: #0d1a0d; border: 1px solid var(--accent);
   border-radius: 5px; padding: 3px 7px; width: 100%; outline: none; text-transform: uppercase;
 }
+.inline-edit-sm {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  color: var(--accent2); background: #0d1820; border: 1px solid var(--accent2);
+  border-radius: 4px; padding: 2px 5px; width: 100%; outline: none; text-transform: uppercase;
+}
+.inline-edit-sm.num { text-align: right; }
 
 .action-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
 .pick-btn {
@@ -761,7 +767,7 @@ function renderTable() {
     let finalCell = '';
     if (sd === 'matched') {
       finalCell = r._editing
-        ? `<input class="inline-edit" id="edit-${r.id}" value="${esc(r.final||'')}" onkeydown="editKeydown(event,${r.id})" onblur="commitEdit(${r.id})">`
+        ? `<input class="inline-edit" id="edit-final-${r.id}" value="${esc(r.final||'')}" onkeydown="editKeydown(event,${r.id})" onblur="commitEdit(${r.id})" placeholder="Nama final">`
         : `<span class="final-text">${esc(r.final||'')}</span>`;
     } else if (sd === 'review') {
       finalCell = r.reviewState === 'resolved'
@@ -770,6 +776,13 @@ function renderTable() {
     } else {
       finalCell = r.final ? `<span class="final-text">${esc(r.final)}</span>` : `<span class="name-null">—</span>`;
     }
+
+    const editing = r._editing && sd === 'matched';
+    const sat1Cell = editing ? `<input class="inline-edit-sm" id="edit-sat1-${r.id}" value="${esc(r.satuan1||'')}" onblur="commitEdit(${r.id})" onkeydown="editKeydown(event,${r.id})" placeholder="SAT1">` : `<span class="sat-text">${r.satuan1||'—'}</span>`;
+    const hj1Cell  = editing ? `<input class="inline-edit-sm num" id="edit-hj1-${r.id}" value="${r.hj1||''}" onblur="commitEdit(${r.id})" onkeydown="editKeydown(event,${r.id})" placeholder="HJ1">` : `<span class="price-text">${r.hj1 ? fmt(r.hj1) : '—'}</span>`;
+    const sat2Cell = editing ? `<input class="inline-edit-sm" id="edit-sat2-${r.id}" value="${esc(r.satuan2||'')}" onblur="commitEdit(${r.id})" onkeydown="editKeydown(event,${r.id})" placeholder="SAT2">` : `<span class="sat-text">${r.satuan2||'—'}</span>`;
+    const konv2Cell= editing ? `<input class="inline-edit-sm num" id="edit-konv2-${r.id}" value="${r.konversi2||''}" onblur="commitEdit(${r.id})" onkeydown="editKeydown(event,${r.id})" placeholder="KONV">` : `<span class="sat-text">${r.konversi2||'—'}</span>`;
+    const hj2Cell  = editing ? `<input class="inline-edit-sm num" id="edit-hj2-${r.id}" value="${r.hj2||''}" onblur="commitEdit(${r.id})" onkeydown="editKeydown(event,${r.id})" placeholder="HJ2">` : `<span class="price-text">${r.hj2 ? fmt(r.hj2) : '—'}</span>`;
 
     const scoreCell = r.score > 0 ? `<span class="score-badge">${Math.round(r.score*100)}%</span>` : `<span class="score-badge" style="color:var(--border)">—</span>`;
 
@@ -795,11 +808,11 @@ function renderTable() {
       <td class="td-name">${srcCell}</td>
       <td class="td-name">${iposCell}</td>
       <td class="td-final">${finalCell}</td>
-      <td class="td-sat"><span class="sat-text">${r.satuan1||'—'}</span></td>
-      <td class="td-price"><span class="price-text">${r.hj1 ? fmt(r.hj1) : '—'}</span></td>
-      <td class="td-sat"><span class="sat-text">${r.satuan2||'—'}</span></td>
-      <td class="td-sat"><span class="sat-text">${r.konversi2||'—'}</span></td>
-      <td class="td-price"><span class="price-text">${r.hj2 ? fmt(r.hj2) : '—'}</span></td>
+      <td class="td-sat">${sat1Cell}</td>
+      <td class="td-price">${hj1Cell}</td>
+      <td class="td-sat">${sat2Cell}</td>
+      <td class="td-sat">${konv2Cell}</td>
+      <td class="td-price">${hj2Cell}</td>
       <td>${scoreCell}</td>
       <td class="td-actions">${actionCell}</td>
     </tr>`;
@@ -823,14 +836,24 @@ function startEdit(id) {
   const r = records.find(r => r.id === id);
   if (r) r._editing = true;
   renderTable();
-  setTimeout(() => { const inp = document.getElementById('edit-'+id); if (inp) { inp.focus(); inp.select(); } }, 20);
+  setTimeout(() => {
+    const inp = document.getElementById('edit-final-'+id);
+    if (inp) { inp.focus(); inp.select(); }
+  }, 20);
 }
 function commitEdit(id) {
-  const inp = document.getElementById('edit-'+id);
-  if (!inp) return;
-  const val = inp.value.trim().toUpperCase();
   const r = records.find(r => r.id === id);
-  if (r) { if (val) r.final = val; r._editing = false; }
+  if (!r || !r._editing) return;
+  const getVal = (fid) => { const el = document.getElementById(fid); return el ? el.value.trim() : null; };
+  const getNum = (fid) => { const el = document.getElementById(fid); if (!el) return null; const v = parseFloat(el.value.replace(/[^0-9.]/g,'')); return isNaN(v) ? null : v; };
+  const final = getVal('edit-final-'+id);
+  if (final) r.final = final.toUpperCase();
+  const sat1 = getVal('edit-sat1-'+id); if (sat1 !== null) r.satuan1 = sat1.toUpperCase() || null;
+  const hj1  = getNum('edit-hj1-'+id);  if (hj1 !== null) r.hj1 = hj1;
+  const sat2 = getVal('edit-sat2-'+id); if (sat2 !== null) r.satuan2 = sat2.toUpperCase() || null;
+  const konv2= getNum('edit-konv2-'+id);if (konv2 !== null) r.konversi2 = konv2;
+  const hj2  = getNum('edit-hj2-'+id);  if (hj2 !== null) r.hj2 = hj2;
+  r._editing = false;
   renderTable();
   scheduleSave();
 }
