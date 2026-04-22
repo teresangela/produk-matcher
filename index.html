@@ -150,6 +150,19 @@ header {
   border-radius: 6px; cursor: pointer; white-space: nowrap; transition: all 0.15s;
 }
 .reset-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+.add-btn {
+  font-family: 'DM Mono', monospace; font-size: 11px; padding: 6px 14px;
+  background: var(--surface2); color: var(--accent); border: 1px solid var(--accent);
+  border-radius: 6px; cursor: pointer; white-space: nowrap; transition: all 0.15s; font-weight: 600;
+}
+.add-btn:hover { background: #1a1e0a; }
+.add-input {
+  font-family: 'DM Mono', monospace; font-size: 12px; padding: 8px 12px; width: 100%;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); outline: none; transition: border-color 0.15s; text-transform: uppercase;
+}
+.add-input:focus { border-color: var(--accent); }
+.add-input.num { text-align: right; text-transform: none; }
 
 .table-wrap { padding: 16px 32px; overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 11.5px; min-width: 900px; }
@@ -318,6 +331,7 @@ td { padding: 9px 10px; vertical-align: middle; }
     <button class="filter-btn" data-filter="unmatched_src" onclick="setFilter('unmatched_src')">UNMATCHED SRC</button>
     <button class="filter-btn" data-filter="unmatched_ipos" onclick="setFilter('unmatched_ipos')">UNMATCHED IPOS</button>
     <input class="search-box" type="text" placeholder="Search items..." oninput="onSearch(this.value)">
+    <button class="add-btn" onclick="openAddModal()">+ ADD ITEM</button>
     <button class="save-btn" onclick="saveProgress()">↓ SAVE</button>
     <button class="export-btn" onclick="exportCSV()">↓ EXPORT CSV</button>
     <button class="reset-btn" onclick="exitApp()">⏏ EXIT</button>
@@ -338,6 +352,8 @@ td { padding: 9px 10px; vertical-align: middle; }
           <th>SATUAN 2</th>
           <th>KONVERSI 2</th>
           <th>HJ 2</th>
+          <th>MODAL 1</th>
+          <th>MODAL 2</th>
           <th>MATCH %</th>
           <th>AKSI</th>
         </tr>
@@ -354,6 +370,51 @@ td { padding: 9px 10px; vertical-align: middle; }
     <p>Pilih salah satu nama untuk dijadikan FINAL:</p>
     <div class="modal-choices" id="modal-choices"></div>
     <button class="modal-close" onclick="closeModalDirect()">Tutup</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="add-modal-overlay" onclick="closeAddModal(event)">
+  <div class="modal" style="max-width:520px">
+    <h3>+ Tambah Item Manual</h3>
+    <p>Item akan masuk sebagai MATCHED (MANUAL)</p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:0.8px">NAMA ITEM (FINAL) *</div>
+        <input class="add-input" id="add-final" type="text" placeholder="Nama produk">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:0.8px">SATUAN 1</div>
+          <input class="add-input" id="add-sat1" type="text" placeholder="PCS">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:0.8px">HJ 1</div>
+          <input class="add-input num" id="add-hj1" type="number" placeholder="0">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:0.8px">MODAL 1</div>
+          <input class="add-input num" id="add-hm1" type="number" placeholder="0">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:0.8px">SATUAN 2</div>
+          <input class="add-input" id="add-sat2" type="text" placeholder="KRT">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:0.8px">KONVERSI 2</div>
+          <input class="add-input num" id="add-konv2" type="number" placeholder="0">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:0.8px">HJ 2</div>
+          <input class="add-input num" id="add-hj2" type="number" placeholder="0">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:0.8px">MODAL 2</div>
+          <input class="add-input num" id="add-hm2" type="number" placeholder="0">
+        </div>
+      </div>
+    </div>
+    <button class="upload-btn" style="width:100%;padding:10px;font-size:12px" onclick="submitAddItem()">TAMBAH ITEM</button>
+    <button class="modal-close" style="margin-top:8px" onclick="closeAddModalDirect()">Batal</button>
   </div>
 </div>
 
@@ -629,8 +690,9 @@ function runMatching(srcNames, iposItems) {
     satuan3: item?.satuan3 || null, satuan4: item?.satuan4 || null,
     konversi1: item?.konversi1 || null, konversi2: item?.konversi2 || null,
     hj1: item?.hj1 || null, hj2: item?.hj2 || null,
+    hm1: null, hm2: null,
   });
-  const emptyPrice = () => ({satuan1:null,satuan2:null,satuan3:null,satuan4:null,konversi1:null,konversi2:null,hj1:null,hj2:null});
+  const emptyPrice = () => ({satuan1:null,satuan2:null,satuan3:null,satuan4:null,konversi1:null,konversi2:null,hj1:null,hj2:null,hm1:null,hm2:null});
 
   srcNames.forEach((src, i) => {
     let bestScore = 0, bestIpos = null;
@@ -698,6 +760,8 @@ function getDisplayRows() {
       rows.push({...r, _status_display:'matched', _source:'MANUAL'});
     } else if (r.status === 'auto') {
       rows.push({...r, _status_display:'matched', _source:'AUTO'});
+    } else if (r.status === 'manual') {
+      rows.push({...r, _status_display:'matched', _source:'MANUAL'});
     } else {
       rows.push({...r, _status_display:r.status, _source:null});
     }
@@ -783,6 +847,8 @@ function renderTable() {
     const sat2Cell = editing ? `<input class="inline-edit-sm" id="edit-sat2-${r.id}" value="${esc(r.satuan2||'')}" onblur="commitEdit(${r.id})" onkeydown="editKeydown(event,${r.id})" placeholder="SAT2">` : `<span class="sat-text">${r.satuan2||'—'}</span>`;
     const konv2Cell= editing ? `<input class="inline-edit-sm num" id="edit-konv2-${r.id}" value="${r.konversi2||''}" onblur="commitEdit(${r.id})" onkeydown="editKeydown(event,${r.id})" placeholder="KONV">` : `<span class="sat-text">${r.konversi2||'—'}</span>`;
     const hj2Cell  = editing ? `<input class="inline-edit-sm num" id="edit-hj2-${r.id}" value="${r.hj2||''}" onblur="commitEdit(${r.id})" onkeydown="editKeydown(event,${r.id})" placeholder="HJ2">` : `<span class="price-text">${r.hj2 ? fmt(r.hj2) : '—'}</span>`;
+    const hm1Cell  = editing ? `<input class="inline-edit-sm num" id="edit-hm1-${r.id}" value="${r.hm1||''}" onblur="commitEdit(${r.id})" onkeydown="editKeydown(event,${r.id})" placeholder="MODAL 1">` : `<span class="price-text">${r.hm1 ? fmt(r.hm1) : '—'}</span>`;
+    const hm2Cell  = editing ? `<input class="inline-edit-sm num" id="edit-hm2-${r.id}" value="${r.hm2||''}" onblur="commitEdit(${r.id})" onkeydown="editKeydown(event,${r.id})" placeholder="MODAL 2">` : `<span class="price-text">${r.hm2 ? fmt(r.hm2) : '—'}</span>`;
 
     const scoreCell = r.score > 0 ? `<span class="score-badge">${Math.round(r.score*100)}%</span>` : `<span class="score-badge" style="color:var(--border)">—</span>`;
 
@@ -813,6 +879,8 @@ function renderTable() {
       <td class="td-sat">${sat2Cell}</td>
       <td class="td-sat">${konv2Cell}</td>
       <td class="td-price">${hj2Cell}</td>
+      <td class="td-price">${hm1Cell}</td>
+      <td class="td-price">${hm2Cell}</td>
       <td>${scoreCell}</td>
       <td class="td-actions">${actionCell}</td>
     </tr>`;
@@ -853,6 +921,8 @@ function commitEdit(id) {
   const sat2 = getVal('edit-sat2-'+id); if (sat2 !== null) r.satuan2 = sat2.toUpperCase() || null;
   const konv2= getNum('edit-konv2-'+id);if (konv2 !== null) r.konversi2 = konv2;
   const hj2  = getNum('edit-hj2-'+id);  if (hj2 !== null) r.hj2 = hj2;
+  const hm1  = getNum('edit-hm1-'+id);  if (hm1 !== null) r.hm1 = hm1;
+  const hm2  = getNum('edit-hm2-'+id);  if (hm2 !== null) r.hm2 = hm2;
   r._editing = false;
   renderTable();
   scheduleSave();
@@ -872,6 +942,39 @@ function undoReject(id) {
   const r = records.find(r => r.id === id);
   if (r) { r.reviewState = null; r.final = null; }
   renderTable(); scheduleSave();
+}
+
+// ── Add Item Modal ──
+function openAddModal() {
+  ['final','sat1','hj1','hm1','sat2','konv2','hj2','hm2'].forEach(f => {
+    const el = document.getElementById('add-'+f);
+    if (el) el.value = '';
+  });
+  document.getElementById('add-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('add-final').focus(), 50);
+}
+function closeAddModal(e) { if (e.target === document.getElementById('add-modal-overlay')) closeAddModalDirect(); }
+function closeAddModalDirect() { document.getElementById('add-modal-overlay').classList.remove('open'); }
+
+function submitAddItem() {
+  const final = document.getElementById('add-final').value.trim().toUpperCase();
+  if (!final) { alert('Nama item wajib diisi!'); return; }
+  const getV = id => document.getElementById(id).value.trim().toUpperCase() || null;
+  const getN = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) || v === 0 ? null : v; };
+  const newId = Date.now();
+  const newRecord = {
+    id: newId, src: null, ipos: null, score: 0,
+    status: 'manual', final,
+    reviewState: null, _editing: false,
+    satuan1: getV('add-sat1'), hj1: getN('add-hj1'), hm1: getN('add-hm1'),
+    satuan2: getV('add-sat2'), konversi2: getN('add-konv2'), hj2: getN('add-hj2'), hm2: getN('add-hm2'),
+    satuan3: null, satuan4: null, konversi1: null,
+  };
+  records.push(newRecord);
+  closeAddModalDirect();
+  setFilter('all');
+  renderTable();
+  scheduleSave();
 }
 
 // ── Modal ──
@@ -945,9 +1048,9 @@ function saveProgress() {
 
 // ── Export CSV ──
 function exportCSV() {
-  const rows = [['NAMA ITEM (FINAL)','NAMA ITEM SRC','NAMA ITEM IPOS','SATUAN 1','HJ 1','SATUAN 2','KONVERSI 2','HJ 2']];
+  const rows = [['NAMA ITEM (FINAL)','NAMA ITEM SRC','NAMA ITEM IPOS','SATUAN 1','HJ 1','MODAL 1','SATUAN 2','KONVERSI 2','HJ 2','MODAL 2']];
   getDisplayRows().forEach(r => {
-    rows.push([r.final||'', r.src||'', r.ipos||'', r.satuan1||'', r.hj1||'', r.satuan2||'', r.konversi2||'', r.hj2||'']);
+    rows.push([r.final||'', r.src||'', r.ipos||'', r.satuan1||'', r.hj1||'', r.hm1||'', r.satuan2||'', r.konversi2||'', r.hj2||'', r.hm2||'']);
   });
   const csv = rows.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
